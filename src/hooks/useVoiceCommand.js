@@ -32,7 +32,7 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'he-IL';
-    recognition.continuous = true;
+    recognition.continuous = false;
     recognition.interimResults = false;
 
     recognition.onstart = () => {
@@ -82,16 +82,26 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
 
     recognition.onend = () => {
       if (isContinuousRef.current) {
-        try {
-          // Add a small delay before restarting to avoid rapid loops
-          setTimeout(() => {
-            if (isContinuousRef.current && recognitionRef.current) {
-              recognitionRef.current.start();
+        // Wait until TTS (Text-to-Speech) is done speaking to avoid mic feedback loops
+        const checkAndRestart = () => {
+          if (!isContinuousRef.current) return;
+          
+          if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            // Keep checking every 200ms
+            setTimeout(checkAndRestart, 200);
+          } else {
+            try {
+              if (isContinuousRef.current && recognitionRef.current) {
+                recognitionRef.current.start();
+              }
+            } catch (e) {
+              console.error("Restart error", e);
             }
-          }, 100);
-        } catch (e) {
-          console.error("Restart error", e);
-        }
+          }
+        };
+        
+        // Initial delay before starting the check (gives chime/TTS a moment to begin)
+        setTimeout(checkAndRestart, 400);
       } else {
         setIsListening(false);
       }
