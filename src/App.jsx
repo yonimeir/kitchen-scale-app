@@ -70,7 +70,7 @@ function App() {
     }
   }, [containers, selectedContainer, setContainers]);
 
-  const { isListening, isActiveProcessing, toggleListening, isSupported } = useVoiceCommand({
+  const { isListening, isActiveProcessing, toggleListening, isSupported, error } = useVoiceCommand({
     onCommand: handleVoiceCommand,
     wakeWords: ['משקל', 'היי משקל', 'תשקול לי']
   });
@@ -158,8 +158,18 @@ function App() {
           </button>
         )}
       </header>
+
+      {error && (
+        <div className="glass p-3 mb-2 text-center" style={{ borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.08)', zIndex: 2, borderRadius: '1rem' }}>
+          <span style={{ color: '#ff6b6b', fontSize: '0.85rem', fontWeight: 600, direction: 'rtl', display: 'block' }}>
+            {error === 'not-allowed' 
+              ? '⚠️ גישת מיקרופון נחסמה. נא לאשר גישה בהגדרות הדפדפן (או לוודא שימוש בחיבור HTTPS מאובטח).' 
+              : `⚠️ שגיאת מיקרופון: ${error}`}
+          </span>
+        </div>
+      )}
       
-      {isListening && (
+      {isListening && !error && (
          <div className="flex-center" style={{ minHeight: '32px', margin: '0.2rem 0', zIndex: 2 }}>
            {isActiveProcessing ? (
              <div className="flex-center gap-3">

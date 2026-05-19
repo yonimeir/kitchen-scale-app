@@ -5,9 +5,27 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי משקל', 'תשקול לי'] }) {
   const [isListening, setIsListening] = useState(false);
   const [isActiveProcessing, setIsActiveProcessing] = useState(false);
+  const [error, setError] = useState(null);
   const recognitionRef = useRef(null);
   const isContinuousRef = useRef(false);
   const timeoutRef = useRef(null);
+
+  // Keep references to the latest values of dependencies so callbacks can read them without re-triggering useEffect
+  const onCommandRef = useRef(onCommand);
+  const wakeWordsRef = useRef(wakeWords);
+  const isActiveProcessingRef = useRef(isActiveProcessing);
+
+  useEffect(() => {
+    onCommandRef.current = onCommand;
+  }, [onCommand]);
+
+  useEffect(() => {
+    wakeWordsRef.current = wakeWords;
+  }, [wakeWords]);
+
+  useEffect(() => {
+    isActiveProcessingRef.current = isActiveProcessing;
+  }, [isActiveProcessing]);
 
   useEffect(() => {
     if (!SpeechRecognition) return;
@@ -19,6 +37,7 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
 
     recognition.onstart = () => {
       setIsListening(true);
+      setError(null);
       isContinuousRef.current = true;
     };
 
@@ -29,10 +48,12 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
       
       console.log("🗣️ השמעתי:", transcript);
 
-      // Check if it contains a wake word
-      const containsWakeWord = wakeWords.some(w => transcript.includes(w));
+      // Check if it contains a wake word using latest refs
+      const currentWakeWords = wakeWordsRef.current;
+      const currentIsActiveProcessing = isActiveProcessingRef.current;
+      const containsWakeWord = currentWakeWords.some(w => transcript.includes(w));
       
-      if (containsWakeWord || isActiveProcessing) {
+      if (containsWakeWord || currentIsActiveProcessing) {
         if (containsWakeWord) {
            setIsActiveProcessing(true);
            // Clear any existing timeout
@@ -44,13 +65,16 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
            }, 8000);
         }
         
-        onCommand(transcript);
+        if (onCommandRef.current) {
+          onCommandRef.current(transcript);
+        }
       }
     };
 
     recognition.onerror = (event) => {
       console.error("Speech recognition error", event.error);
-      if (event.error === 'not-allowed') {
+      setError(event.error);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setIsListening(false);
         isContinuousRef.current = false;
       }
@@ -82,7 +106,7 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
         recognitionRef.current.stop();
       }
     };
-  }, [onCommand, wakeWords, isActiveProcessing]);
+  }, []); // Run only once on mount
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current) {
@@ -95,6 +119,7 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
       setIsActiveProcessing(false);
       recognitionRef.current.stop();
     } else {
+      setError(null);
       try {
         recognitionRef.current.start();
       } catch (e) {
@@ -103,5 +128,6 @@ export function useVoiceCommand({ onCommand, wakeWords = ['משקל', 'היי מ
     }
   }, [isListening]);
 
-  return { isListening, isActiveProcessing, toggleListening, isSupported: !!SpeechRecognition };
+  return { isListening, isActiveProcessing, toggleListening, error, isSupported: !!SpeechRecognition };
 }
+
