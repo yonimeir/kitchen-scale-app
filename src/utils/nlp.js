@@ -60,17 +60,62 @@ export function parseHebrewVoiceCommand(transcript, containers) {
     'תשע מאות': 900
   };
 
-  // Try to find direct digit numbers first e.g., "500", "1.5 קילו", "1256"
-  const numberMatch = text.match(/(\d+(?:\.\d+)?)/);
-  if (numberMatch) {
-    let num = parseFloat(numberMatch[1]);
-    if (text.includes("קילו") && num <= 20) {
-      if (text.includes("חצי")) {
-        num += 0.5;
+  // Try to find direct digit numbers first e.g., "500", "1.5 קילו", "1256", "קילו 227"
+  const numbers = text.match(/(\d+(?:\.\d+)?)/g);
+  if (numbers && numbers.length > 0) {
+    let parsedWeight = 0;
+    
+    if (text.includes("קילו") || text.includes("קילוגרם")) {
+      // It mentions "kilo"
+      if (numbers.length === 1) {
+        let num = parseFloat(numbers[0]);
+        if (num <= 20) {
+          // Case: "1.5 קילו" -> 1500
+          if (text.includes("חצי")) {
+            num += 0.5;
+          }
+          parsedWeight = num * 1000;
+        } else if (num < 1000) {
+          // Case: "קילו 227" -> 1227
+          parsedWeight = 1000 + num;
+          if (text.includes("חצי")) {
+            parsedWeight += 500;
+          }
+        } else {
+          parsedWeight = num;
+        }
+      } else if (numbers.length >= 2) {
+        // Case: "1 קילו 227" or "2 קילו 300"
+        let kilos = parseFloat(numbers[0]);
+        let grams = parseFloat(numbers[1]);
+        if (kilos <= 20) {
+          parsedWeight = (kilos * 1000) + grams;
+        } else {
+          parsedWeight = kilos + grams;
+        }
+      } else {
+        parsedWeight = parseFloat(numbers[0]);
       }
-      num = num * 1000;
+      
+      // If it's just "קילו וחצי" without any explicit leading number
+      if (text.includes("קילו חצי")) {
+        const indexKilo = text.indexOf("קילו");
+        const beforeKilo = text.substring(0, indexKilo).trim();
+        const hasLeadingDigit = /\d/.test(beforeKilo);
+        if (!hasLeadingDigit) {
+          parsedWeight = 1500;
+        }
+      }
+    } else {
+      // No "kilo" mentioned, e.g. "1227", "227"
+      let num = parseFloat(numbers[0]);
+      if (num > 0 && num < 10 && numbers[0].includes('.')) {
+        parsedWeight = num * 1000;
+      } else {
+        parsedWeight = num;
+      }
     }
-    weight = num;
+    weight = parsedWeight;
   } else {
     // If no digits, parse compound Hebrew words
     if (text.includes("קילו חצי")) {
